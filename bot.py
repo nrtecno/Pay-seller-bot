@@ -19,6 +19,7 @@ def send_welcome(message):
             qr,
             caption=(
                 "SOUNDBOX FAKE PAYMENT PHONE PAY 
+ 
 
 PRICE - ONLY 200 RUPEES ( After making the payment, send your Telegram username along with the screenshot.)
 
