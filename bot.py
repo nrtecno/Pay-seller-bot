@@ -1,12 +1,14 @@
 import os
 import json
+import threading
 import telebot
 from telebot import types
+from flask import Flask
 
 # ====== CONFIG ======
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 PRIVATE_CHANNEL_ID = int(os.environ.get("PRIVATE_CHANNEL_ID"))
-ADMIN_ID = int(os.environ.get("ADMIN_ID"))          # 👈 apna telegram user id
+ADMIN_ID = int(os.environ.get("ADMIN_ID"))
 JOIN_LINK = "https://t.me/+cmYU5y-227EyMzQ1"
 
 bot = telebot.TeleBot(BOT_TOKEN)
@@ -31,15 +33,12 @@ def save_users():
         print("Save users error:", e)
 
 users = load_users()
-
-# Broadcast mode state (sirf admin ke liye)
 broadcast_mode = {}
 
 
-# ====== 1. START COMMAND ======
+# ====== 1. START ======
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    # User ko save karo
     if message.chat.id not in users:
         users.add(message.chat.id)
         save_users()
@@ -60,19 +59,16 @@ def send_welcome(message):
                 )
             )
     except FileNotFoundError:
-        bot.send_message(
-            message.chat.id,
-            "⚠️ pay.png file nahi mili. Admin se contact karein."
-        )
+        bot.send_message(message.chat.id, "⚠️ pay.png file nahi mili.")
     except Exception as e:
         print("Start error:", e)
 
 
-# ====== 2. /bc COMMAND (only admin) ======
+# ====== 2. /bc ======
 @bot.message_handler(commands=['bc'])
 def bc_command(message):
     if message.from_user.id != ADMIN_ID:
-        return  # sirf admin hi use kar sakta hai
+        return
 
     markup = types.InlineKeyboardMarkup(row_width=2)
     markup.add(
@@ -82,13 +78,13 @@ def bc_command(message):
     bot.send_message(
         message.chat.id,
         "📢 Broadcast Control\n\n"
-        "🟢 ON → jo message bhejoge sab users ko jayega\n"
+        "🟢 ON → message sab users ko jayega\n"
         "🔴 OFF → bot normal mode me",
         reply_markup=markup
     )
 
 
-# ====== 3. BC ON/OFF CALLBACK ======
+# ====== 3. BC TOGGLE ======
 @bot.callback_query_handler(func=lambda call: call.data in ['bc_on', 'bc_off'])
 def bc_toggle(call):
     if call.from_user.id != ADMIN_ID:
@@ -100,44 +96,32 @@ def bc_toggle(call):
         bot.answer_callback_query(call.id, "✅ Broadcast ON")
         bot.send_message(
             ADMIN_ID,
-            "🟢 Broadcast mode ON.\nAb jo bhi message (text/photo/video) bhejoge, "
-            "wo sabhi users ko chala jayega.\n\n"
-            "Band karne ke liye /bc → 🔴 OFF dabayein."
+            "🟢 Broadcast ON. Ab jo bhejoge sab users ko jayega.\n"
+            "Band karne ke liye /bc → OFF."
         )
     else:
         broadcast_mode[ADMIN_ID] = False
         bot.answer_callback_query(call.id, "🔴 Broadcast OFF")
-        bot.send_message(
-            ADMIN_ID,
-            "🔴 Broadcast mode OFF. Bot ab normal chalega."
-        )
+        bot.send_message(ADMIN_ID, "🔴 Broadcast OFF. Bot normal.")
 
 
-# ====== 4. BROADCAST HANDLER (admin ke messages ko sabko bhejna) ======
-# Ye handler photo handler se PEHLE hona chahiye
+# ====== 4. BROADCAST ======
 @bot.message_handler(
     func=lambda m: m.from_user.id == ADMIN_ID and broadcast_mode.get(ADMIN_ID, False),
     content_types=['text', 'photo', 'video', 'document', 'audio', 'voice', 'sticker']
 )
 def broadcast_message(message):
-    success = 0
-    failed = 0
-    removed = []
+    success, failed, removed = 0, 0, []
 
     for uid in list(users):
         try:
-            bot.copy_message(
-                chat_id=uid,
-                from_chat_id=message.chat.id,
-                message_id=message.message_id
-            )
+            bot.copy_message(uid, message.chat.id, message.message_id)
             success += 1
         except Exception as e:
             failed += 1
             removed.append(uid)
-            print(f"Broadcast fail for {uid}:", e)
+            print(f"Broadcast fail {uid}:", e)
 
-    # Jo users blocked hain unhe hata do
     for uid in removed:
         users.discard(uid)
     if removed:
@@ -145,45 +129,35 @@ def broadcast_message(message):
 
     bot.reply_to(
         message,
-        f"✅ Broadcast complete!\n\n"
-        f"✔️ Sent: {success}\n"
-        f"❌ Failed: {failed}\n"
-        f"👥 Total users: {len(users)}"
+        f"✅ Broadcast done!\n✔️ Sent: {success}\n❌ Failed: {failed}\n"
+        f"👥 Total: {len(users)}"
     )
 
 
-# ====== 5. SCREENSHOT RECEIVE ======
+# ====== 5. SCREENSHOT ======
 @bot.message_handler(content_types=['photo'])
 def handle_payment_screenshot(message):
     try:
-        # User ko save karo
         if message.chat.id not in users:
             users.add(message.chat.id)
             save_users()
 
         username = message.from_user.username
-
         if not username:
             bot.reply_to(
                 message,
-                "⚠️ Aapke Telegram account par username set nahi hai.\n"
-                "Pehle Telegram Settings me jaakar username set karein, "
-                "phir screenshot ke saath dobara bhejein."
+                "⚠️ Aapke Telegram account par username set nahi hai. "
+                "Pehle username set karein, phir screenshot bhejein."
             )
             return
 
         file_id = message.photo[-1].file_id
 
         markup = types.InlineKeyboardMarkup(row_width=2)
-        approve_btn = types.InlineKeyboardButton(
-            "✅ Approve",
-            callback_data=f"approve_{message.from_user.id}"
+        markup.add(
+            types.InlineKeyboardButton("✅ Approve", callback_data=f"approve_{message.from_user.id}"),
+            types.InlineKeyboardButton("❌ Reject", callback_data=f"reject_{message.from_user.id}")
         )
-        reject_btn = types.InlineKeyboardButton(
-            "❌ Reject",
-            callback_data=f"reject_{message.from_user.id}"
-        )
-        markup.add(approve_btn, reject_btn)
 
         caption = (
             f"🆕 New Payment Request\n"
@@ -191,25 +165,15 @@ def handle_payment_screenshot(message):
             f"🆔 User ID: {message.from_user.id}"
         )
 
-        bot.send_photo(
-            PRIVATE_CHANNEL_ID,
-            file_id,
-            caption=caption,
-            reply_markup=markup
-        )
-
-        bot.reply_to(
-            message,
-            "✅ Aapka payment screenshot mil gaya.\n"
-            "Admin verify karega, thoda wait karein."
-        )
+        bot.send_photo(PRIVATE_CHANNEL_ID, file_id, caption=caption, reply_markup=markup)
+        bot.reply_to(message, "✅ Screenshot mil gaya. Admin verify karega.")
 
     except Exception as e:
-        print("Screenshot handler error:", e)
-        bot.reply_to(message, "⚠️ Kuch error aayi. Dobara try karein.")
+        print("Screenshot error:", e)
+        bot.reply_to(message, "⚠️ Error aayi, dobara try karein.")
 
 
-# ====== 6. APPROVE / REJECT CALLBACK ======
+# ====== 6. APPROVE / REJECT ======
 @bot.callback_query_handler(func=lambda call: call.data.startswith(('approve_', 'reject_')))
 def handle_approval(call):
     try:
@@ -218,48 +182,51 @@ def handle_approval(call):
 
         if action == 'approve':
             try:
-                bot.send_message(
-                    user_id,
-                    f"🎉 Your deal approved!\n\nJOIN: {JOIN_LINK}"
-                )
+                bot.send_message(user_id, f"🎉 Your deal approved!\n\nJOIN: {JOIN_LINK}")
             except Exception as e:
-                print("User notify error (approve):", e)
-
-            bot.answer_callback_query(call.id, "✅ Approved & link sent.")
-
-            try:
-                bot.edit_message_caption(
-                    chat_id=call.message.chat.id,
-                    message_id=call.message.message_id,
-                    caption=(call.message.caption or "") + "\n\n✅ APPROVED",
-                    reply_markup=None
-                )
-            except Exception as e:
-                print("Edit caption error (approve):", e)
-
+                print("Notify error:", e)
+            bot.answer_callback_query(call.id, "✅ Approved")
+            new_caption = (call.message.caption or "") + "\n\n✅ APPROVED"
         else:
             try:
                 bot.send_message(user_id, "❌ Your deal rejected.")
             except Exception as e:
-                print("User notify error (reject):", e)
+                print("Notify error:", e)
+            bot.answer_callback_query(call.id, "❌ Rejected")
+            new_caption = (call.message.caption or "") + "\n\n❌ REJECTED"
 
-            bot.answer_callback_query(call.id, "❌ Rejected & user notified.")
-
-            try:
-                bot.edit_message_caption(
-                    chat_id=call.message.chat.id,
-                    message_id=call.message.message_id,
-                    caption=(call.message.caption or "") + "\n\n❌ REJECTED",
-                    reply_markup=None
-                )
-            except Exception as e:
-                print("Edit caption error (reject):", e)
+        try:
+            bot.edit_message_caption(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                caption=new_caption,
+                reply_markup=None
+            )
+        except Exception as e:
+            print("Edit caption error:", e)
 
     except Exception as e:
-        print("Callback handler error:", e)
+        print("Callback error:", e)
 
 
-# ====== 7. POLLING START ======
+# ====== 7. DUMMY HTTP SERVER ======
+flask_app = Flask(__name__)
+
+@flask_app.route('/')
+def home():
+    return "Bot is running!", 200
+
+@flask_app.route('/health')
+def health():
+    return "OK", 200
+
+def run_flask():
+    port = int(os.environ.get("PORT", 10000))
+    flask_app.run(host="0.0.0.0", port=port)
+
+
+# ====== 8. START ======
 if __name__ == "__main__":
-    print("Bot started...")
+    threading.Thread(target=run_flask, daemon=True).start()
+    print("Bot polling started...")
     bot.infinity_polling()
