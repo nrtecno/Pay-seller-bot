@@ -18,7 +18,14 @@ def send_welcome(message):
             message.chat.id,
             qr,
             caption=(
-                "I AM NRHACKZ\n\n"
+                "SOUNDBOX FAKE PAYMENT PHONE PAY 👿 
+
+PRICE - ONLY 200 RUPEES ( After making the payment, send your Telegram username along with the screenshot.)
+
+FEATURES - Soundbox Working 
+                    - Unlimited Balance 
+                    - Truecaller Massage 
+                    - All Banks Support \n\n"
                 "💳 Payment karne ke liye upar diya gaya QR code scan karein.\n"
                 "📸 Payment ke baad screenshot aur apna Telegram username bhejein."
             )
