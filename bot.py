@@ -50,7 +50,7 @@ def send_welcome(message):
                 qr,
                 caption=(
                     "SOUNDBOX FAKE PAYMENT PHONE PAY 👿\n\n"
-                    "PRICE - ONLY 100 RUPEES ( After making the payment, send your "
+                    "PRICE - ONLY 150 RUPEES ( After making the payment, send your "
                     "Telegram username along with the screenshot.)\n\n"
                     "FEATURES - Soundbox Working\n"
                     "                    - Unlimited Balance\n"
