@@ -49,8 +49,8 @@ def send_welcome(message):
                 message.chat.id,
                 qr,
                 caption=(
-                    "SOUNDBOX FAKE PAYMENT PHONE PAY 👿\n\n"
-                    "PRICE - ONLY 150 RUPEES ( After making the payment, send your "
+                    "SOUNDBOX FAKE PAYMENT PAYTM 👿\n\n"
+                    "PRICE - ONLY 50 RUPEES ( After making the payment, send your "
                     "Telegram username along with the screenshot.)\n\n"
                     "FEATURES - Soundbox Working\n"
                     "                    - Unlimited Balance\n"
