@@ -9,7 +9,7 @@ from flask import Flask
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 PRIVATE_CHANNEL_ID = int(os.environ.get("PRIVATE_CHANNEL_ID"))
 ADMIN_ID = int(os.environ.get("ADMIN_ID"))
-JOIN_LINK = "https://t.me/+cmYU5y-227EyMzQ1"
+JOIN_LINK = "https://t.me/+KKHYX3MBmPE2YTZl"
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
